@@ -382,6 +382,15 @@ async def main():
                     await client.disconnect()
             except Exception as e:
                 log(f"[❌] Ошибка автозагрузки {name}: {e}", Fore.RED)
+    if not sessions:
+        log("Нет подключённых сессий. Скрипт завершает работу.", Fore.RED)
+        return
+
+    log(f"Всего загружено сессий: {len(sessions)}", Fore.CYAN)
+    log("[🚀] Запускаю воркеры...\n", Fore.CYAN)
+
+    tasks = [asyncio.create_task(session_worker(s)) for s in sessions]
+    await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
     try:
