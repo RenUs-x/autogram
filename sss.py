@@ -250,7 +250,7 @@ async def session_worker(s: dict):
 
     # Ждём пока капча исчезнет
             while await detect_captcha(client, bot):
-                await asyncio.sleep(60)
+                await asyncio.sleep(300)
 
             log(f"[{name}] ✅ Капча пройдена. Продолжаю работу.", Fore.GREEN)
             update_status(name, "WORKING 🟢")
@@ -398,3 +398,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
