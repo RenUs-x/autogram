@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import aiohttp
+from aiohttp import web
 
 # ===== НАСТРОЙКИ =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -87,6 +88,18 @@ async def poll():
 
         await asyncio.sleep(2)
 
+
+async def health(request):
+    return web.Response(text="OK")
+
+async def start_web():
+    app = web.Application()
+    app.router.add_get("/", health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 10000)
+    await site.start()
+
 # ===== MAIN =====
 async def main():
     global last_status
@@ -94,7 +107,8 @@ async def main():
 
     await asyncio.gather(
         poll(),
-        watch_status_changes()
+        watch_status_changes(),
+        start_web()
     )
 
 if __name__ == "__main__":
