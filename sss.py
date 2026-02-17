@@ -383,67 +383,6 @@ async def main():
             except Exception as e:
                 log(f"[❌] Ошибка автозагрузки {name}: {e}", Fore.RED)
 
-    # === Ручное добавление новых сессий ===
-    while len(sessions) < MAX_SESSIONS:
-        add = input(f"Добавить новую сессию? (y/n) [{len(sessions)}/{MAX_SESSIONS}]: ").lower()
-        if add != "y":
-            break
-        name = input("Имя сессии: ").strip()
-        if not name:
-            print("❌ Имя не может быть пустым")
-            continue
-        try:
-            api_id = int(input("API_ID: "))
-        except ValueError:
-            print("❌ API_ID должен быть числом")
-            continue
-        api_hash = input("API_HASH: ").strip()
-        phone = input("Номер (+...): ").strip()
-
-        session_basename = f"{name}_session"
-        session_path = os.path.join(SESSIONS_DIR, session_basename)
-        client = TelegramClient(session_path, api_id, api_hash)
-        await client.connect()
-        try:
-            if not await client.is_user_authorized():
-                await client.send_code_request(phone)
-                code = input(f"Введите код для {name}: ").strip()
-                try:
-                    await client.sign_in(phone, code)
-                except errors.SessionPasswordNeededError:
-                    pwd = input(f"Пароль 2FA для {name}: ").strip()
-                    await client.sign_in(password=pwd)
-            log(f"[✅] Сессия {name} подключена", Fore.GREEN)
-            sessions.append({"name": name, "client": client, "stats": {"tasks": 0, "grams": 0, "joined_set": set()}})
-            sessions_log_append(name, api_id, api_hash)
-        except Exception as e:
-            log(f"[❌] Ошибка при подключении {name}: {e}", Fore.RED)
-            try:
-                await client.disconnect()
-            except Exception:
-                pass
-            continue
-
-    if not sessions:
-        log("Нет подключённых сессий. Скрипт завершает работу.", Fore.RED)
-        return
-
-    log(Fore.MAGENTA + f"\nВсего загружено сессий: {len(sessions)}\n")
-    log("[🚀] Запускаю воркеры...\n", Fore.MAGENTA)
-
-    tasks = [asyncio.create_task(session_worker(s)) for s in sessions]
-    try:
-        await asyncio.gather(*tasks)
-    except asyncio.CancelledError:
-        log("[✖] Задачи отменены.", Fore.RED)
-    finally:
-        for s in sessions:
-            try:
-                await s["client"].disconnect()
-            except Exception:
-                pass
-
-
 if __name__ == "__main__":
     try:
         asyncio.run(main())
