@@ -95,11 +95,14 @@ async def health(request):
 async def start_web():
     app = web.Application()
     app.router.add_get("/", health)
+
+    port = int(os.getenv("PORT", 10000))  # <-- ВАЖНО
+
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 10000)
+    site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-
+    
 # ===== MAIN =====
 async def main():
     global last_status
@@ -113,3 +116,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
