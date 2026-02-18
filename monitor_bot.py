@@ -34,10 +34,9 @@ async def send_message(text):
                     "text": text
                 }
             )
-)
 
 # ===== Команда /start =====
-async def handle_start():
+async def handle_start(chat_id):
     status_data = load_status()
 
     if not status_data:
@@ -48,7 +47,14 @@ async def handle_start():
     for name, status in status_data.items():
         text += f"{name} — {status}\n"
 
-    await send_message(text)
+    async with aiohttp.ClientSession() as session:
+        await session.post(
+            f"{API_URL}/sendMessage",
+            json={
+                "chat_id": chat_id,
+                "text": text
+            }
+        )
 
 # ===== Проверка изменения статусов =====
 async def watch_status_changes():
@@ -82,15 +88,17 @@ async def poll():
             if not message:
                 continue
 
-            if message["chat"]["id"] not in ADMIN_IDS:
+            chat_id = message["chat"]["id"]
+
+            if chat_id not in ADMIN_IDS:
                 continue
 
             if message.get("text") == "/start":
-                await handle_start()
+                await handle_start(chat_id)
 
         await asyncio.sleep(2)
 
-
+# ===== HEALTH ENDPOINT =====
 async def health(request):
     return web.Response(text="OK")
 
@@ -98,13 +106,13 @@ async def start_web():
     app = web.Application()
     app.router.add_get("/", health)
 
-    port = int(os.getenv("PORT", 10000))  # <-- ВАЖНО
+    port = int(os.getenv("PORT", 10000))
 
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    
+
 # ===== MAIN =====
 async def main():
     global last_status
@@ -118,5 +126,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
