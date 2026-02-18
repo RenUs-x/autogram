@@ -6,7 +6,7 @@ from aiohttp import web
 
 # ===== НАСТРОЙКИ =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
+ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS").split(",")]
 STATUS_FILE = "status.json"
 
 API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
@@ -26,13 +26,15 @@ def load_status():
 # ===== Отправка сообщения =====
 async def send_message(text):
     async with aiohttp.ClientSession() as session:
-        await session.post(
-            f"{API_URL}/sendMessage",
-            json={
-                "chat_id": ADMIN_ID,
-                "text": text
-            }
-        )
+        for admin_id in ADMIN_IDS:
+            await session.post(
+                f"{API_URL}/sendMessage",
+                json={
+                    "chat_id": admin_id,
+                    "text": text
+                }
+            )
+)
 
 # ===== Команда /start =====
 async def handle_start():
@@ -80,7 +82,7 @@ async def poll():
             if not message:
                 continue
 
-            if message["chat"]["id"] != ADMIN_ID:
+            if message["chat"]["id"] not in ADMIN_IDS:
                 continue
 
             if message.get("text") == "/start":
@@ -116,4 +118,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
