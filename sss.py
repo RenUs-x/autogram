@@ -274,10 +274,9 @@ async def session_worker(s: dict):
             # === NO TASKS CHECK ===
             if await detect_no_tasks(client, bot):
                 log(f"[{name}] ❌ Нет заданий. Сон 15 минут.", Fore.YELLOW)
-                update_status(name, "IDLE ⏸")
+                update_status(name, "NO TASKS 🟣")
 
                 await asyncio.sleep(random.randint(840, 960))
-                update_status(name, "NO TASKS 🟣")
                 continue
 
             found, msg_with_btn, btn = await find_subscribe_button(client, bot)
@@ -450,5 +449,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
