@@ -63,13 +63,19 @@ async def watch_status_changes():
     while True:
         current = load_status()
 
+        # если это первый запуск — просто запоминаем
+        if not last_status:
+            last_status = current
+            await asyncio.sleep(5)
+            continue
+
         for name, status in current.items():
             if name in last_status and last_status[name] != status:
                 await send_message(f"{name} — {status}")
 
         last_status = current
         await asyncio.sleep(5)
-
+        
 # ===== Polling =====
 async def poll():
     global last_update_id
@@ -126,3 +132,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
