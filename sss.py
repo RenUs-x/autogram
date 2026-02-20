@@ -14,13 +14,21 @@ from colorama import Fore, init
 init(autoreset=True)
 
 # === CONFIG ===
-MAX_SESSIONS = 2
+MAX_SESSIONS = 10
 BOT_USERNAME = "gram_piarbot"
 SCAN_MESSAGES = 8
 REPORT_IN_SAVED = True
 SESSIONS_LOG = "sessions.log"
 SESSIONS_DIR = "sessions"
 STATUS_FILE = "status.json"
+
+# === DEVICES FOR BYPASS ===
+DEVICES = [
+    {"model": "Samsung Galaxy S23", "sys": "Android 13", "app": "10.5.0"},
+    {"model": "Pixel 7 Pro", "sys": "Android 14", "app": "10.4.1"},
+    {"model": "iPhone 15 Pro", "sys": "iOS 17.2", "app": "10.3.2"},
+    {"model": "Xiaomi 13T", "sys": "Android 13", "app": "10.5.0"}
+]
 
 #===== JSON =======
 def update_status(session_name, status_text):
@@ -39,8 +47,8 @@ def update_status(session_name, status_text):
         json.dump(data, f, indent=4)
 
 # === ANTI-FLOOD ===
-MIN_ACTION_DELAY = 1.5
-MAX_ACTION_DELAY = 5.0
+MIN_ACTION_DELAY = 5.0
+MAX_ACTION_DELAY = 10.0
 MIN_REST_AFTER_BATCH = 10
 MAX_REST_AFTER_BATCH = 20
 BATCH_MIN = 5
@@ -242,6 +250,9 @@ async def session_worker(s: dict):
         try:
            # Получаем bot_entity СНАЧАЛА
             bot = await client.get_entity(BOT_USERNAME)
+            
+            await client.send_read_acknowledge(bot) # Помечаем как прочитанное
+            await asyncio.sleep(random.uniform(2, 4)) # Типа "читаем" пару секунд
 
         # === CAPTCHA CHECK ===
             if await detect_captcha(client, bot):
@@ -258,6 +269,15 @@ async def session_worker(s: dict):
 
             await client.send_message(bot, "👨‍💻 Заработать")
             await asyncio.sleep(human_sleep())
+            await client.send_read_acknowledge(bot)
+            
+            # === NO TASKS CHECK ===
+            if await detect_no_tasks(client, bot):
+                log(f"[{name}] ❌ Нет заданий. Сон 15 минут.", Fore.YELLOW)
+                update_status(name, "IDLE ⏸")
+
+                await asyncio.sleep(random.randint(840, 960))  # 15 минут
+                continue
 
             found, msg_with_btn, btn = await find_subscribe_button(client, bot)
             if not found:
@@ -352,7 +372,28 @@ async def detect_captcha(client, bot_entity, limit=6):
             return True
 
     return False
+    
+#========= NO TASKS DETECT ================
+async def detect_no_tasks(client, bot_entity, limit=6):
+    msgs = await client.get_messages(bot_entity, limit=limit)
 
+    keywords = [
+        "нет заданий",
+        "нет доступных заданий",
+        "нету доступных заданий",
+        "нет заданий для выполнения"
+    ]
+
+    for msg in msgs:
+        if not msg.text:
+            continue
+
+        text = msg.text.lower()
+
+        if any(k in text for k in keywords):
+            return True
+
+    return False
 
 # === MAIN ===
 async def main():
@@ -372,7 +413,17 @@ async def main():
             if not os.path.exists(f"{session_basename}.session") and os.path.exists(os.path.join(SESSIONS_DIR, f"{session_basename}.session")):
                 session_path = os.path.join(SESSIONS_DIR, session_basename)
             try:
-                client = TelegramClient(session_path, api_id, api_hash)
+                dev = random.choice(DEVICES) # Выбираем случайное устройство из списка выше
+                client = TelegramClient(
+                    session_path, 
+                    api_id, 
+                    api_hash,
+                    device_model=dev["model"],
+                    system_version=dev["sys"],
+                    app_version=dev["app"],
+                    lang_code="ru",
+                    system_lang_code="ru-RU"
+            )
                 await client.connect()
                 if await client.is_user_authorized():
                     log(f"[✅] Автозагружена сессия: {name}", Fore.GREEN)
