@@ -290,7 +290,8 @@ async def session_worker(s: dict):
                 update_status(name, "WORKING 🟢")
 
                 continue
-
+            await client.send_message(bot, "👨‍💻 Заработать")
+            await asyncio.sleep(human_sleep())
             found, msg_with_btn, btn = await find_subscribe_button(client, bot)
             if not found:
                 log(f"[{name}] Кнопка подписки не найдена. Ждём...", Fore.YELLOW)
@@ -461,6 +462,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
