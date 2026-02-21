@@ -243,6 +243,7 @@ async def session_worker(s: dict):
     stats = s["stats"]
     start_time = datetime.now(timezone.utc)
     consecutive_success = 0
+    no_task_counter = 0
     log(f"[{name}] Воркер запущен.", Fore.CYAN)
     update_status(name, "WORKING 🟢")
 
@@ -251,7 +252,6 @@ async def session_worker(s: dict):
            # Получаем bot_entity СНАЧАЛА
             bot = await client.get_entity(BOT_USERNAME)
             
-            if random.random() < 0.3:
                 await client.send_read_acknowledge(bot) # Помечаем как прочитанное
                 await asyncio.sleep(random.uniform(2, 4)) # Типа "читаем" пару секунд
 
@@ -275,33 +275,29 @@ async def session_worker(s: dict):
             await client.send_message(bot, "👨‍💻 Заработать")
             await asyncio.sleep(human_sleep())
             
-            # === NO TASKS WAIT LOOP ===
-            if await detect_no_tasks(client, bot):
+             #====== NO TASKS DETECT ========           
+            found, msg_with_btn, btn = await find_subscribe_button(client, bot)
 
-                log(f"[{name}] ❌ Нет заданий. Ожидаю появления...", Fore.YELLOW)
+            if not found:
+                no_task_counter += 1
+
+                log(f"[{name}] Нет заданий ({no_task_counter}/2)", Fore.YELLOW)
+
+                # если 2 раза подряд нет заданий → sleep
+                if no_task_counter >= 2:
+                log(f"[{name}] ❌ Задания закончились. Сон 15 минут.", Fore.MAGENTA)
                 update_status(name, "NO TASKS 🟣")
 
-                while True:
-                    await asyncio.sleep(900)  # 15 минут
+                await asyncio.sleep(900)  # 15 минут
 
-                    # ВАЖНО — обновляем задания
-                    await client.send_message(bot, "👨‍💻 Заработать")
-                    await asyncio.sleep(5)
-
-                    if not await detect_no_tasks(client, bot):
-                        break
-
-                log(f"[{name}] ✅ Задания снова появились.", Fore.GREEN)
+                no_task_counter = 0
                 update_status(name, "WORKING 🟢")
 
-                continue
-                
-            found, msg_with_btn, btn = await find_subscribe_button(client, bot)
-            if not found:
-                log(f"[{name}] Кнопка подписки не найдена. Ждём...", Fore.YELLOW)
+            else:
                 await asyncio.sleep(human_sleep())
-                continue
 
+            continue
+#=========== URL ============
             url = None
             if isinstance(btn, KeyboardButtonCallback):
                 await press_callback(client, bot, msg_with_btn.id, btn.data)
@@ -326,6 +322,7 @@ async def session_worker(s: dict):
                 status, info = await join_and_archive(client, url, stats["joined_set"], stats, start_time)
 
                 if status in ("joined", "already", "request_sent"):
+                    no_task_counter = 0
                     pressed_check = await attempt_press_check(client, bot, original_msg=msg_with_btn)
                     if pressed_check:
                         stats["tasks"] += 1
@@ -390,28 +387,6 @@ async def detect_captcha(client, bot_entity, limit=6):
 
     return False
     
-#========= NO TASKS DETECT ================
-async def detect_no_tasks(client, bot_entity, limit=6):
-    msgs = await client.get_messages(bot_entity, limit=limit)
-
-    keywords = [
-        "нет заданий",
-        "нет доступных заданий",
-        "нету доступных заданий",
-        "нет заданий для выполнения"
-    ]
-
-    for msg in msgs:
-        if not msg.text:
-            continue
-
-        text = msg.text.lower()
-
-        if any(k in text for k in keywords):
-            return True
-
-    return False
-
 # === MAIN ===
 async def main():
     sessions = []
@@ -466,15 +441,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
-
-
-
-
-
-
-
-
-
-
 
 
