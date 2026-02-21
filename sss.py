@@ -277,13 +277,19 @@ async def session_worker(s: dict):
                 log(f"[{name}] ❌ Нет заданий. Ожидаю появления...", Fore.YELLOW)
                 update_status(name, "NO TASKS 🟣")
 
-                while await detect_no_tasks(client, bot):
-                    await asyncio.sleep(random.randint(840, 960))  # ~15 минут
+                # ждём пока задания появятся
+                while True:
+                await asyncio.sleep(random.randint(840, 960))  # ~15 минут
 
-                log(f"[{name}] ✅ Задания снова появились.", Fore.GREEN)
-                update_status(name, "WORKING 🟢")
+                await client.send_message(bot, "👨‍💻 Заработать")
+                await asyncio.sleep(5)
 
-                continue
+                if not await detect_no_tasks(client, bot):
+                    log(f"[{name}] ✅ Задания появились. Возобновляю работу.", Fore.GREEN)
+                    update_status(name, "WORKING 🟢")
+                    break
+
+            continue
 
             found, msg_with_btn, btn = await find_subscribe_button(client, bot)
             if not found:
@@ -455,6 +461,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
