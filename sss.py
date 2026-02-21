@@ -284,18 +284,16 @@ async def session_worker(s: dict):
 
                 # если 2 раза подряд нет заданий → sleep
                 if no_task_counter >= 2:
-                log(f"[{name}] ❌ Задания закончились. Сон 15 минут.", Fore.MAGENTA)
-                update_status(name, "NO TASKS 🟣")
+                    log(f"[{name}] ❌ Задания закончились. Сон 15 минут.", Fore.MAGENTA)
+                    update_status(name, "NO TASKS 🟣")
 
-                await asyncio.sleep(900)  # 15 минут
+                    await asyncio.sleep(900)  # 15 минут
 
-                no_task_counter = 0
-                update_status(name, "WORKING 🟢")
+                    no_task_counter = 0
+                    update_status(name, "WORKING 🟢")
 
-            else:
                 await asyncio.sleep(human_sleep())
-
-            continue
+                continue
 #=========== URL ============
             url = None
             if isinstance(btn, KeyboardButtonCallback):
@@ -440,6 +438,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
