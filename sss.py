@@ -271,6 +271,10 @@ async def session_worker(s: dict):
                 update_status(name, "WORKING 🟢")
 
                 continue
+                
+            await client.send_message(bot, "👨‍💻 Заработать")
+            await asyncio.sleep(human_sleep())
+            
             # === NO TASKS WAIT LOOP ===
             if await detect_no_tasks(client, bot):
 
@@ -278,11 +282,12 @@ async def session_worker(s: dict):
                 update_status(name, "NO TASKS 🟣")
 
                 while True:
-                    # ждём 15 минут НО частями
-                    for _ in range(15):     # 15 × 60 секунд
-                        await asyncio.sleep(60)
-                        # держим соединение живым
-                        await client.get_me()
+                    await asyncio.sleep(900)  # 15 минут
+
+                    # ВАЖНО — обновляем задания
+                    await client.send_message(bot, "👨‍💻 Заработать")
+                    await asyncio.sleep(5)
+
                     if not await detect_no_tasks(client, bot):
                         break
 
@@ -290,9 +295,7 @@ async def session_worker(s: dict):
                 update_status(name, "WORKING 🟢")
 
                 continue
-        
-            await client.send_message(bot, "👨‍💻 Заработать")
-            await asyncio.sleep(human_sleep())
+                
             found, msg_with_btn, btn = await find_subscribe_button(client, bot)
             if not found:
                 log(f"[{name}] Кнопка подписки не найдена. Ждём...", Fore.YELLOW)
@@ -463,6 +466,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
