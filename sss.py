@@ -278,11 +278,11 @@ async def session_worker(s: dict):
                 update_status(name, "NO TASKS 🟣")
 
                 while True:
-                    # просто ждём
-                    await asyncio.sleep(900)  # 15 минут
-                     # обновляем диалог (НЕ спам)
-                    await client.send_read_acknowledge(bot)
-                     # проверяем снова
+                    # ждём 15 минут НО частями
+                    for _ in range(15):     # 15 × 60 секунд
+                        await asyncio.sleep(60)
+                        # держим соединение живым
+                        await client.get_me()
                     if not await detect_no_tasks(client, bot):
                         break
 
@@ -290,6 +290,7 @@ async def session_worker(s: dict):
                 update_status(name, "WORKING 🟢")
 
                 continue
+        
             await client.send_message(bot, "👨‍💻 Заработать")
             await asyncio.sleep(human_sleep())
             found, msg_with_btn, btn = await find_subscribe_button(client, bot)
@@ -462,6 +463,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
