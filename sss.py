@@ -278,7 +278,7 @@ async def session_worker(s: dict):
                 update_status(name, "NO TASKS 🟣")
 
                 while await detect_no_tasks(client, bot):
-                await asyncio.sleep(random.randint(840, 960))  # ~15 минут
+                    await asyncio.sleep(random.randint(840, 960))  # ~15 минут
 
                 log(f"[{name}] ✅ Задания снова появились.", Fore.GREEN)
                 update_status(name, "WORKING 🟢")
@@ -455,6 +455,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
