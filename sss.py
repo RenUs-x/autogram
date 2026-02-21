@@ -251,8 +251,9 @@ async def session_worker(s: dict):
            # Получаем bot_entity СНАЧАЛА
             bot = await client.get_entity(BOT_USERNAME)
             
-            await client.send_read_acknowledge(bot) # Помечаем как прочитанное
-            await asyncio.sleep(random.uniform(2, 4)) # Типа "читаем" пару секунд
+            if random.random() < 0.3:
+                await client.send_read_acknowledge(bot) # Помечаем как прочитанное
+                await asyncio.sleep(random.uniform(2, 4)) # Типа "читаем" пару секунд
 
             # === LIVE CAPTCHA WATCHDOG ===
             if await detect_captcha(client, bot):
@@ -460,6 +461,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
