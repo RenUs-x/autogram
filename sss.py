@@ -254,23 +254,22 @@ async def session_worker(s: dict):
             await client.send_read_acknowledge(bot) # Помечаем как прочитанное
             await asyncio.sleep(random.uniform(2, 4)) # Типа "читаем" пару секунд
 
-        # === CAPTCHA CHECK ===
+            # === LIVE CAPTCHA WATCHDOG ===
             if await detect_captcha(client, bot):
-                    log(f"[{name}] 🛑 Обнаружена капча. Ожидаю прохождения...", Fore.RED)
-                    update_status(name, "CAPTCHA 🔴")
 
-    # Ждём пока капча исчезнет
-            while await detect_captcha(client, bot):
-                await asyncio.sleep(300)
+                log(f"[{name}] 🛑 Обнаружена капча. Ожидаю прохождения...", Fore.RED)
+                update_status(name, "CAPTCHA 🔴")
 
-            log(f"[{name}] ✅ Капча пройдена. Продолжаю работу.", Fore.GREEN)
-            update_status(name, "WORKING 🟢")
-            await asyncio.sleep(3)
+                while True:
+                    await asyncio.sleep(300)
 
-            await client.send_message(bot, "👨‍💻 Заработать")
-            await asyncio.sleep(human_sleep())
-            await client.send_read_acknowledge(bot)
-            
+                    if not await detect_captcha(client, bot):
+                        break
+
+                log(f"[{name}] ✅ Капча пройдена. Продолжаю работу.", Fore.GREEN)
+                update_status(name, "WORKING 🟢")
+
+                continue
             # === NO TASKS WAIT LOOP ===
             if await detect_no_tasks(client, bot):
 
@@ -461,6 +460,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
