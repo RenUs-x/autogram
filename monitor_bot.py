@@ -117,7 +117,14 @@ async def start_web():
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
+    try:
+        await site.start()
+    except OSError as e:
+        if e.errno == 98:
+            # Порт уже занят (например, keep_alive в main.py).
+            # Не падаем, чтобы монитор продолжил работать.
+            return
+        raise
 
 # ===== MAIN =====
 async def main(sessions=None):
@@ -132,5 +139,6 @@ async def main(sessions=None):
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
