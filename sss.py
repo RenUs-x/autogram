@@ -243,6 +243,7 @@ async def session_worker(s: dict):
     start_time = datetime.now(timezone.utc)
     consecutive_success = 0
     no_task_counter = 0
+    last_no_tasks_msg_id = None
     log(f"[{name}] Воркер запущен.", Fore.CYAN)
     update_status(name, "WORKING 🟢")
 
@@ -273,6 +274,23 @@ async def session_worker(s: dict):
             await client.send_message(bot, "👨‍💻 Заработать")
             await asyncio.sleep(human_sleep())
             found, msg_with_btn, btn = await find_subscribe_button(client, bot)
+
+            # ===== НЕТ ЗАДАНИЙ =====
+            if not found:
+                # бот показал экран без заданий
+                if await detect_no_tasks(client, bot):
+
+                log(f"[{name}] ❌ Нет заданий. Сон 15 минут.", Fore.MAGENTA)
+                update_status(name, "NO TASKS 🟣")
+
+                await asyncio.sleep(900)
+                continue
+
+            # иначе просто ждём новую кнопку
+            log(f"[{name}] Кнопка не найдена. Ждём...", Fore.YELLOW)
+            await asyncio.sleep(human_sleep())
+            continue
+
             # ===== NO TASKS SLEEP =====
             if await detect_no_tasks(client, bot):
 
@@ -282,6 +300,7 @@ async def session_worker(s: dict):
                 await asyncio.sleep(900)  # 15 минут
 
                 continue
+                
             #=========== URL ============
             url = None
             if isinstance(btn, KeyboardButtonCallback):
@@ -455,6 +474,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
