@@ -22,13 +22,13 @@ SESSIONS_LOG = "sessions.log"
 SESSIONS_DIR = "sessions"
 STATUS_FILE = "status.json"
 
-# === DEVICES FOR BYPASS ===
-DEVICES = [
-    {"model": "Samsung Galaxy S23", "sys": "Android 13", "app": "10.5.0"},
-    {"model": "Pixel 7 Pro", "sys": "Android 14", "app": "10.4.1"},
-    {"model": "iPhone 15 Pro", "sys": "iOS 17.2", "app": "10.3.2"},
-    {"model": "Xiaomi 13T", "sys": "Android 13", "app": "10.5.0"}
-]
+# === WEB SESSION CONFIG ===
+# Параметры для маскировки под Telegram Web
+WEB_DEVICE = {
+    "model": "Telegram Web",
+    "sys": "Windows 11",
+    "app": "WebK 2.1.0"
+}
 
 #===== JSON =======
 def update_status(session_name, status_text):
@@ -47,7 +47,7 @@ def update_status(session_name, status_text):
         json.dump(data, f, indent=4)
 
 # === ANTI-FLOOD ===
-MIN_ACTION_DELAY = 2.5
+MIN_ACTION_DELAY = 5.0
 MAX_ACTION_DELAY = 7.0
 MIN_REST_AFTER_BATCH = 10
 MAX_REST_AFTER_BATCH = 20
@@ -290,16 +290,6 @@ async def session_worker(s: dict):
                 log(f"[{name}] Кнопка не найдена. Ждём...", Fore.YELLOW)
                 await asyncio.sleep(human_sleep())
                 continue
-
-            # ===== NO TASKS SLEEP =====
-            if await detect_no_tasks(client, bot):
-
-                log(f"[{name}] ❌ Нет заданий. Сон 15 минут.", Fore.MAGENTA)
-                update_status(name, "NO TASKS 🟣")
-
-                await asyncio.sleep(900)  # 15 минут
-
-                continue
                 
             #=========== URL ============
             url = None
@@ -391,35 +381,6 @@ async def detect_captcha(client, bot_entity, limit=6):
 
     return False
     
-    # ===== NO TASKS DETECT =====
-async def detect_no_tasks(client, bot_entity, limit=6):
-    global last_no_tasks_msg_id
-
-    msgs = await client.get_messages(bot_entity, limit=limit)
-
-    keywords = [
-        "нету доступных заданий",
-        "нет доступных заданий",
-        "нет заданий"
-    ]
-
-    for msg in msgs:
-        if not msg.text:
-            continue
-
-        text = msg.text.lower()
-
-        if any(k in text for k in keywords):
-
-            # 👉 ЕСЛИ это то же сообщение — игнорируем
-            if last_no_tasks_msg_id == msg.id:
-                return False
-
-            # 👉 новое сообщение
-            last_no_tasks_msg_id = msg.id
-            return True
-
-    return False
 # === MAIN ===
 async def main():
     sessions = []
@@ -438,17 +399,17 @@ async def main():
             if not os.path.exists(f"{session_basename}.session") and os.path.exists(os.path.join(SESSIONS_DIR, f"{session_basename}.session")):
                 session_path = os.path.join(SESSIONS_DIR, session_basename)
             try:
-                dev = random.choice(DEVICES) # Выбираем случайное устройство из списка выше
                 client = TelegramClient(
                     session_path, 
                     api_id, 
                     api_hash,
-                    device_model=dev["model"],
-                    system_version=dev["sys"],
-                    app_version=dev["app"],
+                    device_model="Telegram Web",
+                    system_version="Windows 11",
+                    app_version="WebK 2.1.0",
                     lang_code="ru",
                     system_lang_code="ru-RU"
-            )
+                )
+                
                 await client.connect()
                 if await client.is_user_authorized():
                     log(f"[✅] Автозагружена сессия: {name}", Fore.GREEN)
@@ -474,6 +435,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
