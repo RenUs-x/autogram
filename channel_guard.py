@@ -149,7 +149,7 @@ async def guard_loop(sessions):
                 print(f"{name}: {channels_count} каналов")
                 update_status(
                     f"{name} [GUARD]",
-                    f"GUARD 🛡 | Channels: {channels_count} | Left: {left_count}"
+                    f"Channels: {channels_count} | Left: {left_count}"
                 )
             except Exception as e:
                 print(f"{name}: guard error: {e}")
