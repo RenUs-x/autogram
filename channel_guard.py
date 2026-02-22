@@ -135,6 +135,3 @@ async def guard_loop():
 # ================= MAIN =================
 async def main():
     await channel_guard()
-    
-if __name__ == "__main__":
-    asyncio.run(guard_loop())
