@@ -280,16 +280,16 @@ async def session_worker(s: dict):
                 # бот показал экран без заданий
                 if await detect_no_tasks(client, bot):
 
-                log(f"[{name}] ❌ Нет заданий. Сон 15 минут.", Fore.MAGENTA)
-                update_status(name, "NO TASKS 🟣")
+                    log(f"[{name}] ❌ Нет заданий. Сон 15 минут.", Fore.MAGENTA)
+                    update_status(name, "NO TASKS 🟣")
 
-                await asyncio.sleep(900)
-                continue
+                    await asyncio.sleep(900)
+                    continue
 
             # иначе просто ждём новую кнопку
-            log(f"[{name}] Кнопка не найдена. Ждём...", Fore.YELLOW)
-            await asyncio.sleep(human_sleep())
-            continue
+                log(f"[{name}] Кнопка не найдена. Ждём...", Fore.YELLOW)
+                await asyncio.sleep(human_sleep())
+                continue
 
             # ===== NO TASKS SLEEP =====
             if await detect_no_tasks(client, bot):
@@ -474,6 +474,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
