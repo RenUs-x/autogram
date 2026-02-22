@@ -272,7 +272,7 @@ async def session_worker(s: dict):
                 
             await client.send_message(bot, "👨‍💻 Заработать")
             await asyncio.sleep(human_sleep())
-            
+            found, msg_with_btn, btn = await find_subscribe_button(client, bot)
             # ===== NO TASKS SLEEP =====
             if await detect_no_tasks(client, bot):
 
@@ -455,6 +455,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
