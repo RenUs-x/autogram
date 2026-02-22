@@ -10,6 +10,7 @@ from telethon.tl.functions.channels import LeaveChannelRequest
 
 SESSIONS_LOG = "sessions.log"
 STATUS_FILE = "status.json"
+JOINED_CHANNELS_FILE = "joined_channels.json"
 
 CHECK_INTERVAL = 1800      # каждые 30 минут
 LEAVE_AFTER_DAYS = 7       # выход если > 7 дней
@@ -47,6 +48,29 @@ def sessions_log_read():
 
     return entries
 
+def load_joined_channels():
+    if not os.path.exists(JOINED_CHANNELS_FILE):
+        return {}
+    try:
+        with open(JOINED_CHANNELS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
+
+
+def parse_join_time(value):
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value)
+    except Exception:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 # ================= CORE =================
 
@@ -64,6 +88,7 @@ async def check_account(name, api_id, api_hash):
         return
 
     dialogs = await client.get_dialogs()
+    joined_channels = load_joined_channels().get(name, {})
 
     channels = []
     now = datetime.now(timezone.utc)
@@ -81,25 +106,22 @@ async def check_account(name, api_id, api_hash):
 
             channels.append(entity)
 
-            try:
-                full = await client.get_entity(entity.id)
+            channel_id = getattr(entity, "id", None) or getattr(entity, "channel_id", None)
+            if not channel_id:
+                continue
 
-                # приблизительный возраст
-                date = dialog.date
+            joined_at = parse_join_time(joined_channels.get(str(channel_id)))
+            if not joined_at:
+                continue
 
-                if not date:
-                    continue
+            age = now - joined_at
 
-                age = now - date
+            if age > timedelta(days=LEAVE_AFTER_DAYS):
 
-                if age > timedelta(days=LEAVE_AFTER_DAYS):
+                await client(LeaveChannelRequest(entity))
 
-                    await client(LeaveChannelRequest(entity))
+                left_count += 1
 
-                    left_count += 1
-
-            except:
-                pass
 
     total = len(channels)
 
@@ -123,6 +145,7 @@ async def guard_loop(sessions):
 
             try:
                 dialogs = await client.get_dialogs()
+                joined_channels = load_joined_channels().get(name, {})                
 
                 channels = [
                     d for d in dialogs
@@ -137,11 +160,17 @@ async def guard_loop(sessions):
                 left_count = 0
 
                 for dialog in channels:
-                    date = dialog.date
-                    if not date:
+                    channel_id = getattr(dialog.entity, "id", None) or getattr(dialog.entity, "channel_id", None)
+                    if not channel_id:
                         continue
 
-                    age = now - date
+                    joined_at_raw = joined_channels.get(str(channel_id))
+                    joined_at = parse_join_time(joined_at_raw)
+                    if not joined_at:
+                        # Если время вступления неизвестно, канал не трогаем.
+                        continue
+
+                    age = now - joined_at
                     if age > timedelta(days=LEAVE_AFTER_DAYS):
                         await client(LeaveChannelRequest(dialog.entity))
                         left_count += 1
