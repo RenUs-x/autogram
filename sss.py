@@ -428,13 +428,15 @@ async def main():
 
     tasks = [asyncio.create_task(session_worker(s)) for s in sessions]
     await asyncio.gather(*tasks)
-
+    return sessions
+    
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
