@@ -121,7 +121,7 @@ async def guard_loop(sessions):
             client = s["client"]
             name = s["name"]
 
-              try:
+            try:
                 dialogs = await client.get_dialogs()
 
                 channels = [
@@ -133,17 +133,29 @@ async def guard_loop(sessions):
                 ]
 
                 channels_count = len(channels)
+                now = datetime.now(timezone.utc)
+                left_count = 0
+
+                for dialog in channels:
+                    date = dialog.date
+                    if not date:
+                        continue
+
+                    age = now - date
+                    if age > timedelta(days=LEAVE_AFTER_DAYS):
+                        await client(LeaveChannelRequest(dialog.entity))
+                        left_count += 1
 
                 print(f"{name}: {channels_count} каналов")
                 update_status(
                     f"{name} [GUARD]",
-                    f"GUARD 🛡 | Channels: {channels_count}"
+                    f"GUARD 🛡 | Channels: {channels_count} | Left: {left_count}"
                 )
             except Exception as e:
                 print(f"{name}: guard error: {e}")
                 update_status(f"{name} [GUARD]", "GUARD ERROR ❌")
                 
-        await asyncio.sleep(600)
+        await asyncio.sleep(CHECK_INTERVAL)
 
 # ================= MAIN =================
 async def main(sessions):
