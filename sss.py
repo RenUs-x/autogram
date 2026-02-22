@@ -21,6 +21,7 @@ REPORT_IN_SAVED = True
 SESSIONS_LOG = "sessions.log"
 SESSIONS_DIR = "sessions"
 STATUS_FILE = "status.json"
+JOINED_CHANNELS_FILE = "joined_channels.json"
 
 # === WEB SESSION CONFIG ===
 # Параметры для маскировки под Telegram Web
@@ -45,7 +46,39 @@ def update_status(session_name, status_text):
 
     with open(STATUS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
+        
+def load_joined_channels():
+    if not os.path.exists(JOINED_CHANNELS_FILE):
+        return {}
+    try:
+        with open(JOINED_CHANNELS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
 
+
+def save_joined_channels(data):
+    with open(JOINED_CHANNELS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
+
+
+def track_joined_channel(session_name, channel_entity):
+    if channel_entity is None:
+        return
+    channel_id = getattr(channel_entity, "id", None) or getattr(channel_entity, "channel_id", None)
+    if not channel_id:
+        return
+
+    data = load_joined_channels()
+    session_channels = data.setdefault(session_name, {})
+
+    # Фиксируем только первую дату вступления, чтобы срок 7 дней считался корректно.
+    session_channels.setdefault(str(channel_id), datetime.now(timezone.utc).isoformat())
+
+    save_joined_channels(data)
 # === ANTI-FLOOD ===
 MIN_ACTION_DELAY = 5.0
 MAX_ACTION_DELAY = 7.0
@@ -316,6 +349,9 @@ async def session_worker(s: dict):
                 status, info = await join_and_archive(client, url, stats["joined_set"], stats, start_time)
 
                 if status in ("joined", "already", "request_sent"):
+                    if status == "joined":
+                        track_joined_channel(name, info)
+
                     no_task_counter = 0
                     pressed_check = await attempt_press_check(client, bot, original_msg=msg_with_btn)
                     if pressed_check:
@@ -458,4 +494,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
