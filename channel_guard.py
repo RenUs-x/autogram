@@ -133,9 +133,9 @@ async def guard_loop():
 
 
 # ================= MAIN =================
-async def main():
-    await guard_loop()
-
+async def main(sessions):
+    await guard_loop(sessions)
+    
 if __name__ == "__main__":
     asyncio.run(main())
     
