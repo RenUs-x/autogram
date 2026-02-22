@@ -17,3 +17,8 @@ def keep_alive():
     t = threading.Thread(target=run)
     t.daemon = True
     t.start()
+
+
+def start():
+    """Backward-compatible entrypoint used by main.py."""
+    keep_alive()
