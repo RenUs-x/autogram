@@ -112,25 +112,25 @@ async def check_account(name, api_id, api_hash):
 
 
 # ================= LOOP =================
-
-async def guard_loop():
-
-    print("CHANNEL GUARD STARTED")
+async def guard_loop(sessions):
 
     while True:
 
-        sessions = sessions_log_read()
+        for s in sessions:
 
-        tasks = []
+            client = s["client"]
+            name = s["name"]
 
-        for name, (api_id, api_hash) in sessions.items():
-            tasks.append(check_account(name, api_id, api_hash))
+            dialogs = await client.get_dialogs()
 
-        if tasks:
-            await asyncio.gather(*tasks)
+            channels = [
+                d for d in dialogs
+                if d.is_channel and not d.entity.broadcast is False
+            ]
 
-        await asyncio.sleep(CHECK_INTERVAL)
+            print(f"{name}: {len(channels)} каналов")
 
+        await asyncio.sleep(600)
 
 # ================= MAIN =================
 async def main(sessions):
