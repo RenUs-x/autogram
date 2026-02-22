@@ -384,24 +384,30 @@ async def detect_captcha(client, bot_entity, limit=6):
 # === MAIN ===
 async def main():
     sessions = []
+
     print(Fore.CYAN + "PR GRAM AutoFarm v2.0 – Full Edition (by lNexio)\n" + Fore.RESET)
     ensure_sessions_dir()
 
     stored = sessions_log_read()
 
-    # === Автозагрузка из sessions.log ===
+    # === AUTLOAD SESSIONS ===
     if stored:
         for name, (api_id, api_hash) in stored.items():
+
             if len(sessions) >= MAX_SESSIONS:
                 break
+
             session_basename = f"{name}_session"
             session_path = session_basename
-            if not os.path.exists(f"{session_basename}.session") and os.path.exists(os.path.join(SESSIONS_DIR, f"{session_basename}.session")):
+
+            if not os.path.exists(f"{session_basename}.session") and \
+               os.path.exists(os.path.join(SESSIONS_DIR, f"{session_basename}.session")):
                 session_path = os.path.join(SESSIONS_DIR, session_basename)
+
             try:
                 client = TelegramClient(
-                    session_path, 
-                    api_id, 
+                    session_path,
+                    api_id,
                     api_hash,
                     device_model="Telegram Web",
                     system_version="Windows 11",
@@ -409,41 +415,47 @@ async def main():
                     lang_code="ru",
                     system_lang_code="ru-RU"
                 )
-                
+
                 await client.connect()
+
                 if await client.is_user_authorized():
                     log(f"[✅] Автозагружена сессия: {name}", Fore.GREEN)
-                    sessions.append({"name": name, "client": client, "stats": {"tasks": 0, "grams": 0, "joined_set": set()}})
+
+                    sessions.append({
+                        "name": name,
+                        "client": client,
+                        "stats": {
+                            "tasks": 0,
+                            "grams": 0,
+                            "joined_set": set()
+                        }
+                    })
                 else:
-                    log(f"[!] Сессия {name} найдена, но не авторизована.", Fore.YELLOW)
+                    log(f"[!] Сессия {name} не авторизована.", Fore.YELLOW)
                     await client.disconnect()
+
             except Exception as e:
                 log(f"[❌] Ошибка автозагрузки {name}: {e}", Fore.RED)
+
     if not sessions:
-        log("Нет подключённых сессий. Скрипт завершает работу.", Fore.RED)
-        return
+        log("Нет подключённых сессий.", Fore.RED)
+        return []
 
     log(f"Всего загружено сессий: {len(sessions)}", Fore.CYAN)
     log("[🚀] Запускаю воркеры...\n", Fore.CYAN)
 
-    tasks = [asyncio.create_task(session_worker(s)) for s in sessions]
-    await asyncio.gather(*tasks)
+    # ✅ ВАЖНО: запускаем воркеры В ФОНЕ
+    for s in sessions:
+        asyncio.create_task(session_worker(s))
+
+    # ✅ ВАЖНО: сразу отдаём список аккаунтов
     return sessions
-    
+
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
-
-
-
-
-
-
-
-
-
-
 
