@@ -121,15 +121,28 @@ async def guard_loop(sessions):
             client = s["client"]
             name = s["name"]
 
-            dialogs = await client.get_dialogs()
+              try:
+                dialogs = await client.get_dialogs()
 
-            channels = [
-                d for d in dialogs
-                if d.is_channel and not d.entity.broadcast is False
-            ]
+                channels = [
+                    d for d in dialogs
+                    if d.is_channel and (
+                        getattr(d.entity, "broadcast", False)
+                        or getattr(d.entity, "megagroup", False)
+                    )
+                ]
 
-            print(f"{name}: {len(channels)} каналов")
+                channels_count = len(channels)
 
+                print(f"{name}: {channels_count} каналов")
+                update_status(
+                    f"{name} [GUARD]",
+                    f"GUARD 🛡 | Channels: {channels_count}"
+                )
+            except Exception as e:
+                print(f"{name}: guard error: {e}")
+                update_status(f"{name} [GUARD]", "GUARD ERROR ❌")
+                
         await asyncio.sleep(600)
 
 # ================= MAIN =================
