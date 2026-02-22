@@ -100,32 +100,17 @@ async def press_callback(client, bot_entity, message_id, data):
 
 async def find_subscribe_button(client, bot_entity, scan_messages=SCAN_MESSAGES):
     msgs = await client.get_messages(bot_entity, limit=scan_messages)
-
     for msg in msgs:
         markup = getattr(msg, "reply_markup", None)
         if not isinstance(markup, ReplyInlineMarkup):
             continue
-
         for row in markup.rows:
             for btn in row.buttons:
-
-                text = (btn.text or "").lower()
-
-                # ✅ ИЩЕМ ТОЛЬКО РЕАЛЬНОЕ ЗАДАНИЕ
-                if any(x in text for x in [
-                    "подпис",
-                    "subscribe",
-                    "join",
-                    "канал"
-                ]):
+                if isinstance(btn, KeyboardButtonUrl) and btn.url and "t.me" in (btn.url or ""):
                     return True, msg, btn
-
-                # URL задания
-                if isinstance(btn, KeyboardButtonUrl) and "t.me" in (btn.url or ""):
+                if isinstance(btn, KeyboardButtonCallback) and button_text_matches(btn.text):
                     return True, msg, btn
-
     return False, None, None
-
 
 def format_report(stats, start_time):
     elapsed = datetime.now(timezone.utc) - start_time
@@ -268,7 +253,7 @@ async def session_worker(s: dict):
             
             await client.send_read_acknowledge(bot) # Помечаем как прочитанное
             await asyncio.sleep(random.uniform(2, 4)) # Типа "читаем" пару секунд
-            # === LIVE CAPTCHA WATCHDOG ===
+            # === CAPTCHA SLEEP ===
             if await detect_captcha(client, bot):
 
                 log(f"[{name}] 🛑 Обнаружена капча. Ожидаю прохождения...", Fore.RED)
@@ -288,27 +273,16 @@ async def session_worker(s: dict):
             await client.send_message(bot, "👨‍💻 Заработать")
             await asyncio.sleep(human_sleep())
             
-             #====== NO TASKS DETECT ========           
-            found, msg_with_btn, btn = await find_subscribe_button(client, bot)
+            # ===== NO TASKS SLEEP =====
+            if await detect_no_tasks(client, bot):
 
-            if not found:
-                no_task_counter += 1
+                log(f"[{name}] ❌ Нет заданий. Сон 15 минут.", Fore.MAGENTA)
+                update_status(name, "NO TASKS 🟣")
 
-                log(f"[{name}] Нет заданий ({no_task_counter}/2)", Fore.YELLOW)
+                await asyncio.sleep(900)  # 15 минут
 
-                # если 2 раза подряд нет заданий → sleep
-                if no_task_counter >= 2:
-                    log(f"[{name}] ❌ Задания закончились. Сон 15 минут.", Fore.MAGENTA)
-                    update_status(name, "NO TASKS 🟣")
-
-                    await asyncio.sleep(900)  # 15 минут
-
-                    no_task_counter = 0
-                    update_status(name, "WORKING 🟢")
-
-                await asyncio.sleep(human_sleep())
                 continue
-#=========== URL ============
+            #=========== URL ============
             url = None
             if isinstance(btn, KeyboardButtonCallback):
                 await press_callback(client, bot, msg_with_btn.id, btn.data)
@@ -398,6 +372,35 @@ async def detect_captcha(client, bot_entity, limit=6):
 
     return False
     
+    # ===== NO TASKS DETECT =====
+async def detect_no_tasks(client, bot_entity, limit=6):
+    global last_no_tasks_msg_id
+
+    msgs = await client.get_messages(bot_entity, limit=limit)
+
+    keywords = [
+        "нету доступных заданий",
+        "нет доступных заданий",
+        "нет заданий"
+    ]
+
+    for msg in msgs:
+        if not msg.text:
+            continue
+
+        text = msg.text.lower()
+
+        if any(k in text for k in keywords):
+
+            # 👉 ЕСЛИ это то же сообщение — игнорируем
+            if last_no_tasks_msg_id == msg.id:
+                return False
+
+            # 👉 новое сообщение
+            last_no_tasks_msg_id = msg.id
+            return True
+
+    return False
 # === MAIN ===
 async def main():
     sessions = []
@@ -452,6 +455,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
