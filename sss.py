@@ -47,8 +47,8 @@ def update_status(session_name, status_text):
         json.dump(data, f, indent=4)
 
 # === ANTI-FLOOD ===
-MIN_ACTION_DELAY = 5.0
-MAX_ACTION_DELAY = 10.0
+MIN_ACTION_DELAY = 2.5
+MAX_ACTION_DELAY = 7.0
 MIN_REST_AFTER_BATCH = 10
 MAX_REST_AFTER_BATCH = 20
 BATCH_MIN = 5
@@ -100,16 +100,30 @@ async def press_callback(client, bot_entity, message_id, data):
 
 async def find_subscribe_button(client, bot_entity, scan_messages=SCAN_MESSAGES):
     msgs = await client.get_messages(bot_entity, limit=scan_messages)
+
     for msg in msgs:
         markup = getattr(msg, "reply_markup", None)
         if not isinstance(markup, ReplyInlineMarkup):
             continue
+
         for row in markup.rows:
             for btn in row.buttons:
-                if isinstance(btn, KeyboardButtonUrl) and btn.url and "t.me" in (btn.url or ""):
+
+                text = (btn.text or "").lower()
+
+                # ✅ ИЩЕМ ТОЛЬКО РЕАЛЬНОЕ ЗАДАНИЕ
+                if any(x in text for x in [
+                    "подпис",
+                    "subscribe",
+                    "join",
+                    "канал"
+                ]):
                     return True, msg, btn
-                if isinstance(btn, KeyboardButtonCallback) and button_text_matches(btn.text):
+
+                # URL задания
+                if isinstance(btn, KeyboardButtonUrl) and "t.me" in (btn.url or ""):
                     return True, msg, btn
+
     return False, None, None
 
 
@@ -438,6 +452,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
 
