@@ -7,6 +7,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"OK")
+    def do_HEAD(self):
+        # Это заставит UptimeRobot видеть "200 OK" вместо "501"
+        self.send_response(200)
+        self.end_headers()
 
 def run():
     port = int(os.environ.get("PORT", 10000))
