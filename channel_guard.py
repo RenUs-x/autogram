@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timezone, timedelta
 from telethon import TelegramClient
 from telethon.tl.types import Channel
-from telethon.tl.functions.channels import LeaveChannelRequest
+from telethon.tl.functions.channels import LeaveChannelRequest, GetParticipantRequest
 
 # ================= CONFIG =================
 
@@ -25,7 +25,7 @@ def update_status(name, text):
         try:
             with open(STATUS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except:
+        except Exception:
             pass
 
     data[name] = text
@@ -59,6 +59,10 @@ def load_joined_channels():
     except Exception:
         pass
     return {}
+    
+def save_joined_channels(data):
+    with open(JOINED_CHANNELS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
 
 
 def parse_join_time(value):
@@ -72,6 +76,72 @@ def parse_join_time(value):
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
 
+async def get_participant_join_time(client, entity):
+    """
+    Пытаемся получить реальную дату вступления аккаунта в канал/группу через Telegram API.
+    """
+    try:
+        result = await client(GetParticipantRequest(channel=entity, participant="me"))
+        participant = getattr(result, "participant", None)
+        joined_at = getattr(participant, "date", None)
+        if joined_at is None:
+            return None
+        if joined_at.tzinfo is None:
+            joined_at = joined_at.replace(tzinfo=timezone.utc)
+        return joined_at
+    except Exception:
+        return None
+        
+async def resolve_joined_at(client, session_name, entity, joined_channels, all_joined_channels):
+    channel_id = getattr(entity, "id", None) or getattr(entity, "channel_id", None)
+    if not channel_id:
+        return None
+        
+    key = str(channel_id)
+    joined_at = parse_join_time(joined_channels.get(key))
+    if joined_at:
+        return joined_at
+
+    joined_at = await get_participant_join_time(client, entity)
+    if joined_at:
+        joined_channels[key] = joined_at.isoformat()
+        all_joined_channels[session_name] = joined_channels
+        save_joined_channels(all_joined_channels)
+
+    return joined_at
+    
+async def process_channels_for_client(client, name):
+    dialogs = await client.get_dialogs()
+    all_joined_channels = load_joined_channels()
+    joined_channels = all_joined_channels.get(name, {})
+
+    channels = [
+        d for d in dialogs
+        if d.is_channel and (
+            getattr(d.entity, "broadcast", False)
+            or getattr(d.entity, "megagroup", False)
+        )
+    ]
+
+    now = datetime.now(timezone.utc)
+    left_count = 0
+
+    for dialog in channels:
+        entity = dialog.entity
+        if not isinstance(entity, Channel):
+            continue
+
+        joined_at = await resolve_joined_at(client, name, entity, joined_channels, all_joined_channels)
+        if not joined_at:
+            continue
+
+        age = now - joined_at
+        if age >= timedelta(days=LEAVE_AFTER_DAYS):
+            await client(LeaveChannelRequest(entity))
+            left_count += 1
+
+    return len(channels), left_count
+    
 # ================= CORE =================
 
 async def check_account(name, api_id, api_hash):
@@ -87,43 +157,7 @@ async def check_account(name, api_id, api_hash):
         await client.disconnect()
         return
 
-    dialogs = await client.get_dialogs()
-    joined_channels = load_joined_channels().get(name, {})
-
-    channels = []
-    now = datetime.now(timezone.utc)
-
-    left_count = 0
-
-    for dialog in dialogs:
-
-        entity = dialog.entity
-
-        if not isinstance(entity, Channel):
-            continue
-
-        if getattr(entity, "broadcast", False) or getattr(entity, "megagroup", False):
-
-            channels.append(entity)
-
-            channel_id = getattr(entity, "id", None) or getattr(entity, "channel_id", None)
-            if not channel_id:
-                continue
-
-            joined_at = parse_join_time(joined_channels.get(str(channel_id)))
-            if not joined_at:
-                continue
-
-            age = now - joined_at
-
-            if age > timedelta(days=LEAVE_AFTER_DAYS):
-
-                await client(LeaveChannelRequest(entity))
-
-                left_count += 1
-
-
-    total = len(channels)
+    total, left_count = await process_channels_for_client(client, name)
 
     update_status(
         name,
@@ -131,7 +165,6 @@ async def check_account(name, api_id, api_hash):
     )
 
     await client.disconnect()
-
 
 # ================= LOOP =================
 async def guard_loop(sessions):
@@ -144,37 +177,7 @@ async def guard_loop(sessions):
             name = s["name"]
 
             try:
-                dialogs = await client.get_dialogs()
-                joined_channels = load_joined_channels().get(name, {})                
-
-                channels = [
-                    d for d in dialogs
-                    if d.is_channel and (
-                        getattr(d.entity, "broadcast", False)
-                        or getattr(d.entity, "megagroup", False)
-                    )
-                ]
-
-                channels_count = len(channels)
-                now = datetime.now(timezone.utc)
-                left_count = 0
-
-                for dialog in channels:
-                    channel_id = getattr(dialog.entity, "id", None) or getattr(dialog.entity, "channel_id", None)
-                    if not channel_id:
-                        continue
-
-                    joined_at_raw = joined_channels.get(str(channel_id))
-                    joined_at = parse_join_time(joined_at_raw)
-                    if not joined_at:
-                        # Если время вступления неизвестно, канал не трогаем.
-                        continue
-
-                    age = now - joined_at
-                    if age > timedelta(days=LEAVE_AFTER_DAYS):
-                        await client(LeaveChannelRequest(dialog.entity))
-                        left_count += 1
-
+                channels_count, left_count = await process_channels_for_client(client, name)
                 print(f"{name}: {channels_count} каналов")
                 update_status(
                     f"{name} [GUARD]",
@@ -189,6 +192,7 @@ async def guard_loop(sessions):
 # ================= MAIN =================
 async def main(sessions):
     await guard_loop(sessions)
+    
     
 if __name__ == "__main__":
     asyncio.run(main())
