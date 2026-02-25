@@ -12,7 +12,7 @@ SESSIONS_LOG = "sessions.log"
 STATUS_FILE = "status.json"
 JOINED_CHANNELS_FILE = "joined_channels.json"
 
-CHECK_INTERVAL = 1800      # каждые 30 минут
+CHECK_INTERVAL = 3600      # каждые 60 минут
 LEAVE_AFTER_DAYS = 7       # выход если > 7 дней
 
 # ===========================================
