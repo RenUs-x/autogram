@@ -13,15 +13,37 @@ API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 last_update_id = 0
 last_status = {}
 
-# ===== Чтение статусов =====
+
+# ===== Чтение/нормализация статусов =====
+def normalize_status_data(raw_data):
+    normalized = {}
+    if not isinstance(raw_data, dict):
+        return normalized
+
+    for name, value in raw_data.items():
+        if isinstance(value, dict):
+            normalized[name] = {
+                "status": value.get("status", "—"),
+                "guard": value.get("guard", "—")
+            }
+        else:
+            normalized[name] = {
+                "status": value,
+                "guard": "—"
+            }
+
+    return normalized
+
+
 def load_status():
     if not os.path.exists(STATUS_FILE):
         return {}
     try:
         with open(STATUS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
+            return normalize_status_data(json.load(f))
+    except Exception:
         return {}
+
 
 # ===== Отправка сообщения =====
 async def send_message(text):
@@ -35,26 +57,49 @@ async def send_message(text):
                 }
             )
 
-# ===== Команда /start =====
-async def handle_start(chat_id):
+
+def format_status_view(status_data, field):
+    title = "📊 Main Status" if field == "status" else "🛡 Guard Status"
+    lines = [f"{title}:\n"]
+
+    for name, data in status_data.items():
+        lines.append(f"{name} — {data.get(field, '—')}")
+
+    return "\n".join(lines)
+
+
+async def send_status_view(chat_id, field, message_id=None):
     status_data = load_status()
 
     if not status_data:
-        await send_message("Нет данных о статусах.")
-        return
+        text = "Нет данных о статусах."
+    else:
+        text = format_status_view(status_data, field)
 
-    text = "📊 Status:\n\n"
-    for name, status in status_data.items():
-        text += f"{name} — {status}\n"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "reply_markup": {
+            "inline_keyboard": [[
+                {"text": "📊 Status", "callback_data": "show_status"},
+                {"text": "🛡 Guard", "callback_data": "show_guard"}
+            ]]
+        }
+    }
+
+    method = "sendMessage"
+    if message_id is not None:
+        method = "editMessageText"
+        payload["message_id"] = message_id
 
     async with aiohttp.ClientSession() as session:
-        await session.post(
-            f"{API_URL}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": text
-            }
-        )
+        await session.post(f"{API_URL}/{method}", json=payload)
+
+
+# ===== Команда /start =====
+async def handle_start(chat_id):
+    await send_status_view(chat_id, field="status")
+
 
 # ===== Проверка изменения статусов =====
 async def watch_status_changes():
@@ -63,19 +108,35 @@ async def watch_status_changes():
     while True:
         current = load_status()
 
-        # если это первый запуск — просто запоминаем
         if not last_status:
             last_status = current
             await asyncio.sleep(5)
             continue
 
-        for name, status in current.items():
-            if name in last_status and last_status[name] != status:
-                await send_message(f"{name} — {status}")
+        all_names = set(last_status.keys()) | set(current.keys())
+
+        for name in all_names:
+            prev_data = last_status.get(name, {"status": "—", "guard": "—"})
+            cur_data = current.get(name, {"status": "—", "guard": "—"})
+
+            if prev_data.get("status") != cur_data.get("status"):
+                await send_message(f"{name} — STATUS: {cur_data.get('status')}")
+
+            if prev_data.get("guard") != cur_data.get("guard"):
+                await send_message(f"{name} — GUARD: {cur_data.get('guard')}")
 
         last_status = current
         await asyncio.sleep(5)
-        
+
+
+async def answer_callback_query(callback_query_id):
+    async with aiohttp.ClientSession() as session:
+        await session.post(
+            f"{API_URL}/answerCallbackQuery",
+            json={"callback_query_id": callback_query_id}
+        )
+
+
 # ===== Polling =====
 async def poll():
     global last_update_id
@@ -89,6 +150,23 @@ async def poll():
 
         for update in data.get("result", []):
             last_update_id = update["update_id"]
+
+            callback_query = update.get("callback_query")
+            if callback_query:
+                message = callback_query.get("message", {})
+                chat = message.get("chat", {})
+                chat_id = chat.get("id")
+                message_id = message.get("message_id")
+                callback_data = callback_query.get("data")
+                callback_query_id = callback_query.get("id")
+
+                if chat_id in ADMIN_IDS and callback_data in {"show_status", "show_guard"}:
+                    field = "status" if callback_data == "show_status" else "guard"
+                    await send_status_view(chat_id, field, message_id=message_id)
+
+                if callback_query_id:
+                    await answer_callback_query(callback_query_id)
+                continue
 
             message = update.get("message")
             if not message:
@@ -104,9 +182,11 @@ async def poll():
 
         await asyncio.sleep(2)
 
+
 # ===== HEALTH ENDPOINT =====
 async def health(request):
     return web.Response(text="OK")
+
 
 async def start_web():
     app = web.Application()
@@ -121,10 +201,9 @@ async def start_web():
         await site.start()
     except OSError as e:
         if e.errno == 98:
-            # Порт уже занят (например, keep_alive в main.py).
-            # Не падаем, чтобы монитор продолжил работать.
             return
         raise
+
 
 # ===== MAIN =====
 async def main(sessions=None):
@@ -137,8 +216,6 @@ async def main(sessions=None):
         start_web()
     )
 
+
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-
