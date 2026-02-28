@@ -32,17 +32,22 @@ WEB_DEVICE = {
 }
 
 #===== JSON =======
-def update_status(session_name, status_text):
+def update_status(session_name, status_text, field="status"):
     data = {}
 
     if os.path.exists(STATUS_FILE):
         try:
             with open(STATUS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        except:
+        except Exception:
             data = {}
 
-    data[session_name] = status_text
+    current = data.get(session_name, {})
+    if not isinstance(current, dict):
+        current = {"status": current, "guard": "—"}
+
+    current[field] = status_text
+    data[session_name] = current
 
     with open(STATUS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
@@ -522,6 +527,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
-
-
 
