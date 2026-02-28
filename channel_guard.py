@@ -141,7 +141,17 @@ async def process_channels_for_client(client, name):
             left_count += 1
 
     return len(channels), left_count
-    
+
+
+async def ensure_connected(client):
+    if client.is_connected():
+        return True
+    try:
+        await client.connect()
+        return await client.is_user_authorized()
+    except Exception:
+        return False    
+        
 # ================= CORE =================
 
 async def check_account(name, api_id, api_hash):
@@ -177,15 +187,20 @@ async def guard_loop(sessions):
             name = s["name"]
 
             try:
+                if not await ensure_connected(client):
+                    print(f"{name}: guard warn: client disconnected")
+                    update_status(name, "GUARD ERROR ❌ (disconnected)")
+                    continue
+
                 channels_count, left_count = await process_channels_for_client(client, name)
                 print(f"{name}: {channels_count} каналов")
                 update_status(
-                    f"{name} [GUARD]",
-                    f"Channels: {channels_count} | Left: {left_count}"
+                    name,
+                    f"WORKING 🟢 | GUARD 🛡 | Channels: {channels_count} | Left: {left_count}"
                 )
             except Exception as e:
                 print(f"{name}: guard error: {e}")
-                update_status(f"{name} [GUARD]", "GUARD ERROR ❌")
+                update_status(name, "GUARD ERROR ❌")
                 
         await asyncio.sleep(CHECK_INTERVAL)
 
