@@ -92,6 +92,19 @@ def log(text, color=Fore.WHITE):
     print(color + text + Fore.RESET)
 
 
+async def ensure_connected(client, name):
+    if client.is_connected():
+        return True
+    try:
+        await client.connect()
+        if await client.is_user_authorized():
+            log(f"[{name}] 🔌 Переподключился к Telegram.", Fore.CYAN)
+            return True
+    except Exception as e:
+        log(f"[{name}] ❌ Ошибка переподключения: {e}", Fore.RED)
+    return False
+
+
 def human_sleep():
     return random.uniform(MIN_ACTION_DELAY, MAX_ACTION_DELAY)
 
@@ -282,6 +295,11 @@ async def session_worker(s: dict):
 
     while True:
         try:
+            if not await ensure_connected(client, name):
+                update_status(name, "DISCONNECTED 🔴")
+                await asyncio.sleep(10)
+                continue
+
            # Получаем bot_entity СНАЧАЛА
             bot = await client.get_entity(BOT_USERNAME)
             
@@ -391,8 +409,18 @@ async def session_worker(s: dict):
             log(f"[{name}] FloodWaitError: {wait_time} сек.", Fore.RED)
             await asyncio.sleep(wait_time + 3)
         except Exception as e:
-            log(f"[{name}] Ошибка: {e}", Fore.YELLOW)
-            await asyncio.sleep(3)
+            err_text = str(e)
+            if "Cannot send requests while disconnected" in err_text:
+                update_status(name, "DISCONNECTED 🔴")
+                log(f"[{name}] ⚠️ Клиент отключен. Пробую переподключение...", Fore.YELLOW)
+                if await ensure_connected(client, name):
+                    update_status(name, "WORKING 🟢")
+                    await asyncio.sleep(2)
+                    continue
+                await asyncio.sleep(10)
+            else:
+                log(f"[{name}] Ошибка: {e}", Fore.YELLOW)
+                await asyncio.sleep(3)
             
 # === CAPTCHA DETECT ======
 async def detect_captcha(client, bot_entity, limit=6):
@@ -494,5 +522,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         log("\n[✖] Остановлено пользователем.", Fore.RED)
         sys.exit(0)
+
 
 
