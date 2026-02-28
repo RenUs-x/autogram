@@ -18,7 +18,7 @@ LEAVE_AFTER_DAYS = 7       # выход если > 7 дней
 # ===========================================
 
 
-def update_status(name, text):
+def update_status(name, text, field="guard"):
     data = {}
 
     if os.path.exists(STATUS_FILE):
@@ -26,9 +26,14 @@ def update_status(name, text):
             with open(STATUS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception:
-            pass
+            data = {}
 
-    data[name] = text
+    current = data.get(name, {})
+    if not isinstance(current, dict):
+        current = {"status": current, "guard": "—"}
+
+    current[field] = text
+    data[name] = current
 
     with open(STATUS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
@@ -171,7 +176,7 @@ async def check_account(name, api_id, api_hash):
 
     update_status(
         name,
-        f"GUARD 🛡 | Channels: {total} | Left: {left_count}"
+        f"Channels: {total} | Left: {left_count}"
     )
 
     await client.disconnect()
@@ -196,7 +201,7 @@ async def guard_loop(sessions):
                 print(f"{name}: {channels_count} каналов")
                 update_status(
                     name,
-                    f"WORKING 🟢 | GUARD 🛡 | Channels: {channels_count} | Left: {left_count}"
+                    f"Channels: {channels_count} | Left: {left_count}"
                 )
             except Exception as e:
                 print(f"{name}: guard error: {e}")
